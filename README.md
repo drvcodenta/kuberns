@@ -33,3 +33,5 @@ App runs at `http://localhost:5173/`
 4. Watch live deployment logs stream in
 
 > **Note:** Without AWS credentials, deploys run in simulated mode (fake IP, ~15s). To use real EC2, pass `aws_access_key` and `aws_secret_key` in the deploy request body.
+### db planned design
+<img width="1321" height="675" alt="image" src="https://github.com/user-attachments/assets/509319dc-a59b-46d1-b4bf-5f5a20efde29" />
