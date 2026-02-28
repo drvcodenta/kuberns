@@ -30,18 +30,16 @@ The app lets users "deploy" a web app by:
 
 > **Full design + ER diagram**: See [DATABASE_DESIGN.md](file:///C:/Users/acer/Desktop/kuberns/DATABASE_DESIGN.md)
 
-Scalable design with 8 models:
+6 core models:
 
 | Model | Key Fields |
 |-------|-----------|
-| **Organization** | `name`, `github_org_name`, `created_at` |
-| **WebApp** | `FK(Organization)`, `name`, `owner`, `region`, `framework`, `plan_type`, `repo_url`, `repo_name`, `branch` |
+| **WebApp** | `name`, `owner`, `region`, `framework`, `plan_type`, `repo_url`, `repo_name`, `branch` |
 | **Environment** | `FK(WebApp)`, `name` (dev/staging/prod), `branch`, `port`, `is_active` |
 | **EnvVariable** | `FK(Environment)`, `key`, `value`, `is_secret` — individual rows, not JSONField |
 | **Deployment** | `FK(Environment)`, `status`, `triggered_by`, `started_at`, `finished_at` |
 | **Instance** | `OneToOne(Deployment)`, `instance_type`, `cpu`, `ram`, `storage`, `public_ip`, `ec2_instance_id` |
 | **DeploymentLog** | `FK(Deployment)`, `message`, `log_level`, `timestamp` |
-| **DatabaseConfig** | `OneToOne(WebApp)`, `db_type`, `db_name`, `db_host`, `db_port`, `db_user`, `db_password` |
 
 ### 1.3 Serializers (`deployments/serializers.py`)
 - `WebAppSerializer` — nested write for Environment + Instance in one POST

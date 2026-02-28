@@ -2,96 +2,58 @@
 
 ## How to Think About This (Not Cramming, Actually Thinking)
 
-Before drawing any diagram, let's ask the right questions. This is what experienced designers do — they don't start with tables, they start with **real-world things and what happens to them**.
+Before drawing any diagram, ask the right questions. Start with **real-world things and what happens to them**.
 
 ### Step 1: What are the real-world things?
 
-Read the assignment again. Forget code. What **things** exist in this system?
+1. A **user** creates a **web app** (name, repo, region, framework, plan)
+2. Each app has an **environment** (config: port, branch, active/inactive)
+3. Each environment has **env variables** (key-value pairs, some are secrets)
+4. When we deploy, that's a **deployment** (an event with a status timeline)
+5. Each deployment provisions an **instance** (the actual EC2 machine)
+6. Each deployment generates **logs** (what happened, in order)
 
-1. A **user** creates a **web app**
-2. That app lives in some **organization** on GitHub
-3. The app gets deployed to a specific **region**
-4. Each app can have multiple **environments** (think: dev, staging, production)
-5. Each environment has **configuration** — port, env variables
-6. Each environment runs on an **instance** — actual compute (EC2 machine)
-7. When we deploy, stuff happens in sequence — that's a **deployment** with **logs**
-8. Optionally, the app has a **database** attached
+**That's 6 things → 6 models. Nothing more.**
 
-### Step 2: What changes over time? (This is where scalability thinking starts)
+### Step 2: What grows fast? (This determines if it's scalable)
 
-Ask: *"If this app is used for 2 years, what grows?"*
+| Thing | Growth rate | Design decision |
+|-------|-----------|----------------|
+| WebApps | Slow | Small table, no worries |
+| Environments per app | Tiny (2-5) | Small table, no worries |
+| Env variables | Moderate (5-20 per env) | **Own table** — not JSONField |
+| Deployments | **Fast** (every re-deploy) | **Own table** — append-only, never mutate |
+| Deployment logs | **Fastest** (10-50 per deploy) | **Own table** — isolated from everything else |
 
-| Thing | Does it grow? | How fast? |
-|-------|--------------|-----------|
-| Users | Yes | Slowly |
-| WebApps | Yes | Each user creates multiple |
-| Environments per app | Yes | 2-5 per app (dev, staging, prod) |
-| Instances per environment | **Yes!** | Every re-deploy creates a new one |
-| Env variables | Moderate | 5-20 per environment |
-| Deployment logs | **Fast!** | Every deploy generates 10-50 log lines |
+> **The scalability rule**: Things that grow fast get their own table. Period.
 
-> **Key insight**: The things that grow FASTEST should be in their own tables, with proper indexing, so they don't slow down everything else.
+### Step 3: What queries will we run?
 
-### Step 3: What questions will we ask the database?
-
-This is the most important step. The queries determine the design.
-
-- "Show me all apps for user X" → Need: `WebApp.owner` indexed
-- "Show me the current running instance for app Y's production env" → Need: filter by environment + status
-- "Show me env variables for this environment" → Need: fast lookup by environment ID
-- "Show me deployment logs for this instance, newest first" → Need: indexed timestamp
-- "What's the status of my latest deployment?" → Need: latest instance per environment
-
-### Step 4: Where does my old design fall short?
-
-The original design had:
-
-```
-WebApp → Environment (env_vars as JSONField) → Instance
-```
-
-**Problems:**
-
-1. **`env_vars` as JSONField** — You can't search, filter, or audit individual variables. If a password changes, there's no history of what it was. The interviewer specifically cares about scalability — JSONField doesn't scale for operations like "find all apps using API_KEY=xyz".
-
-2. **No multi-environment support** — The old design had one environment per app. Real platforms have dev/staging/prod. Each with its own config.
-
-3. **No deployment history** — Instance was a single record that got mutated. Scalable design keeps **every deployment** as a separate record so you have history.
-
-4. **No Organization model** — The app belongs to an org, and orgs have multiple users. Without this, you can't do team-based access.
-
-5. **Env variables not individually encrypted** — Secrets like `DB_PASSWORD` should be flagged and handled differently.
+- "Show me all apps for user X" → `WebApp.owner` indexed
+- "Show me env variables for production" → `EnvVariable.environment_id` indexed
+- "Show me the latest deployment" → `Deployment.started_at` descending
+- "Show me deploy logs" → `DeploymentLog.timestamp` descending, paginated
 
 ---
 
-## The Improved Design
+## The Design — 6 Models
 
-### Step 5: Draw the relationships first (think in English, not SQL)
+### Relationships in plain English
 
 ```
-An Organization HAS MANY WebApps
 A WebApp HAS MANY Environments (dev, staging, prod)
-An Environment HAS MANY EnvVariables (individual key-value rows)
+An Environment HAS MANY EnvVariables (one row per key-value)
 An Environment HAS MANY Deployments (history of every deploy)
-A Deployment HAS ONE Instance (the actual compute)
-A Deployment HAS MANY DeploymentLogs
-A WebApp MAY HAVE ONE DatabaseConfig
+A Deployment HAS ONE Instance (the actual EC2 machine)
+A Deployment HAS MANY DeploymentLogs (what happened)
 ```
 
-### Now here's the ER Diagram:
+### ER Diagram
 
 ```mermaid
 erDiagram
-    Organization {
-        int id PK
-        string name
-        string github_org_name
-        datetime created_at
-    }
-
     WebApp {
         int id PK
-        int organization_id FK
         string name
         string owner
         string region
@@ -107,7 +69,7 @@ erDiagram
     Environment {
         int id PK
         int webapp_id FK
-        string name "dev, staging, prod"
+        string name "dev / staging / prod"
         string branch
         int port
         boolean is_active
@@ -127,7 +89,7 @@ erDiagram
     Deployment {
         int id PK
         int environment_id FK
-        string status "pending, deploying, active, failed, terminated"
+        string status "pending / deploying / active / failed"
         string triggered_by
         datetime started_at
         datetime finished_at
@@ -136,7 +98,7 @@ erDiagram
     Instance {
         int id PK
         int deployment_id FK
-        string instance_type "t2.micro, t2.medium"
+        string instance_type "t2.micro"
         string cpu
         string ram
         string storage
@@ -149,26 +111,12 @@ erDiagram
     DeploymentLog {
         int id PK
         int deployment_id FK
-        string log_level "info, warning, error"
+        string log_level "info / warning / error"
         string message
         datetime timestamp
     }
 
-    DatabaseConfig {
-        int id PK
-        int webapp_id FK
-        string db_type "postgres, mysql, mongodb"
-        string db_name
-        string db_host
-        int db_port
-        string db_user
-        string db_password "encrypted"
-        datetime created_at
-    }
-
-    Organization ||--o{ WebApp : "has many"
     WebApp ||--o{ Environment : "has many"
-    WebApp ||--o| DatabaseConfig : "may have one"
     Environment ||--o{ EnvVariable : "has many"
     Environment ||--o{ Deployment : "has many"
     Deployment ||--|| Instance : "provisions one"
@@ -177,134 +125,61 @@ erDiagram
 
 ---
 
-## Why This Design is Scalable — The Specific Reasons
+## Why This is Scalable — 3 Reasons (interviewer answer)
 
-### 1. EnvVariable is its own table (not JSONField)
+### 1. Env variables are normalized (not JSONField)
 
-**Before:** `env_vars = {"API_KEY": "abc", "DB_PASS": "xyz"}` in one JSONField.
+| JSONField (bad) | Separate table (good) |
+|---|---|
+| `{"API_KEY": "abc", "DB_PASS": "xyz"}` | One row per variable |
+| Can't search by key | Can index and search by key |
+| Can't audit changes | `updated_at` tracks when it changed |
+| All-or-nothing encryption | `is_secret` flag → encrypt only secrets |
 
-**After:** Each variable is a row.
+### 2. Deployments are append-only
 
-| Why this matters for scalability |
-|---|
-| You can **index** by key — "find all apps using `STRIPE_KEY`" is a real query |
-| You can **audit** changes — add `updated_at`, see when a secret was rotated |
-| You can **encrypt selectively** — `is_secret=True` means only those get encrypted |
-| You can **paginate** — 500 env vars? No problem, it's just rows |
-| Django admin can edit them individually — try editing a JSONField blob |
+Each deploy = new `Deployment` row. Never mutate old ones.
 
-### 2. Deployment is separate from Instance
+- **History**: "Show me the last 10 deploys" → simple query
+- **Rollback**: Previous deploy's config is still there
+- **No conflicts**: Two environments deploying simultaneously = no problem
 
-**Before:** Instance had `status` that got mutated: pending → deploying → active.
+### 3. Logs are isolated
 
-**After:** Each deploy is a NEW `Deployment` row. The Instance is created when the deployment starts.
-
-| Why this matters |
-|---|
-| **Full deployment history** — "show me the last 10 deploys" is a simple query |
-| **Rollback** — You know what the previous deploy's config was |
-| **No data mutation** — Append-only logs are inherently more scalable |
-| **Concurrent deploys** — Two people can deploy to different environments simultaneously |
-
-### 3. Organization as a first-class entity
-
-| Why this matters |
-|---|
-| **Multi-tenancy** — Multiple users can share apps under one org |
-| **Access control** — Easy to add "who can deploy to prod?" later |
-| **Billing** — Bill per org, not per user |
-
-### 4. Multiple Environments per WebApp
-
-| Why this matters |
-|---|
-| **Real-world usage** — Every serious app has dev/staging/prod |
-| **Independent configs** — Prod has different env vars than dev |
-| **Independent deploy cycles** — Deploy to staging without touching prod |
+DeploymentLog is the **fastest growing** table. By keeping it separate:
+- It doesn't slow down `WebApp` or `Environment` queries
+- You can paginate, archive, or purge old logs independently
 
 ---
 
 ## Where Does AWS Come In?
 
-Here's the flow — this is what the interviewer means:
-
 ```
 User fills form → POST /api/webapps/
                        ↓
-              Backend creates WebApp + Environment + Deployment
+              Creates: WebApp + Environment + Deployment
                        ↓
-              Background task starts:
+              Background task:
                        ↓
-         ┌─────────────────────────────┐
-         │ 1. Status → "pending"      │
-         │ 2. Call boto3.create_ec2() │  ← THIS IS THE AWS PART
-         │ 3. Status → "deploying"    │
-         │ 4. Wait for EC2 to start   │
-         │ 5. Get public IP           │
-         │ 6. Status → "active"       │
-         │ 7. Log everything          │
-         └─────────────────────────────┘
+         1. Status → "pending"
+         2. boto3.run_instances()     ← AWS creates a real EC2
+         3. Status → "deploying"
+         4. Wait for EC2 to boot
+         5. Get public_ip
+         6. Status → "active"
+         7. Log every step to DeploymentLog
 ```
 
-**AWS = the actual infrastructure.** When the user picks:
-- **Region:** `ap-south-1` → that's the AWS region for the EC2
-- **Plan: Starter** → `t2.micro` (1 CPU, 1GB RAM)
-- **Plan: Pro** → `t2.medium` (2 CPU, 4GB RAM)
-
-The backend takes these choices and calls AWS to **actually create a virtual machine**. The `Instance` model stores the `ec2_instance_id` and `public_ip` that AWS returns.
-
-The interviewer told you to **actually do this** (not mock it). So you'll need:
-- An AWS account with access keys
-- `boto3` library in Django
-- Real API calls to `ec2.run_instances()`
+All plans use `t2.micro` (Free Tier). Plan type is stored in DB for the design, but the actual EC2 is always free-tier.
 
 ---
 
-## How Top System Designers Think About This
-
-Here's the mental framework — 5 questions, in order:
-
-### Q1: "What are the nouns?"
-→ These become your models/tables
-
-### Q2: "What verbs happen to those nouns?"
-→ "App is **created**", "Environment is **deployed**", "Instance is **terminated**"
-→ Verbs that have a history become their own tables (Deployment, DeploymentLog)
-
-### Q3: "What grows without bound?"
-→ Logs, deployments, env variables
-→ These MUST be in separate tables, never embedded in parent records
-
-### Q4: "What are the access patterns?"
-→ "List my apps" (frequent, must be fast)
-→ "Get latest deployment status" (real-time, needs indexing)
-→ "Search deployment logs" (could be huge, paginate)
-
-### Q5: "What would break if we had 1000x more data?"
-→ JSONField with 500 env vars? Breaks.
-→ Mutating instance status in-place? Loses history.
-→ No indexes on `webapp.owner`? Full table scan.
-
-This is the **thinking process**. Not "what framework should I use?" — but "what are the real things, what happens to them, and what questions will I ask?"
-
----
-
-## Model Field Reference
-
-For when you actually write the Django models:
-
-### Organization
-```python
-name = CharField(max_length=100)
-github_org_name = CharField(max_length=100, blank=True)
-created_at = DateTimeField(auto_now_add=True)
-```
+## Django Model Reference
 
 ### WebApp
 ```python
-organization = ForeignKey(Organization, on_delete=CASCADE, related_name='webapps')
 name = CharField(max_length=100)
-owner = CharField(max_length=100)  # GitHub username
+owner = CharField(max_length=100)       # GitHub username
 region = CharField(max_length=50, choices=REGION_CHOICES)
 framework = CharField(max_length=50, choices=FRAMEWORK_CHOICES)
 plan_type = CharField(max_length=20, choices=PLAN_CHOICES)
@@ -318,7 +193,7 @@ updated_at = DateTimeField(auto_now=True)
 ### Environment
 ```python
 webapp = ForeignKey(WebApp, on_delete=CASCADE, related_name='environments')
-name = CharField(max_length=50)  # "dev", "staging", "production"
+name = CharField(max_length=50)         # "dev", "staging", "production"
 branch = CharField(max_length=100, default='main')
 port = IntegerField(default=3000)
 is_active = BooleanField(default=True)
@@ -347,7 +222,7 @@ finished_at = DateTimeField(null=True, blank=True)
 ### Instance
 ```python
 deployment = OneToOneField(Deployment, on_delete=CASCADE, related_name='instance')
-instance_type = CharField(max_length=20)  # t2.micro, t2.medium
+instance_type = CharField(max_length=20, default='t2.micro')
 cpu = CharField(max_length=20)
 ram = CharField(max_length=20)
 storage = CharField(max_length=20)
@@ -363,16 +238,4 @@ deployment = ForeignKey(Deployment, on_delete=CASCADE, related_name='logs')
 log_level = CharField(max_length=10, choices=LOG_LEVEL_CHOICES, default='info')
 message = TextField()
 timestamp = DateTimeField(auto_now_add=True)
-```
-
-### DatabaseConfig
-```python
-webapp = OneToOneField(WebApp, on_delete=CASCADE, related_name='database_config')
-db_type = CharField(max_length=20, choices=DB_TYPE_CHOICES)
-db_name = CharField(max_length=100)
-db_host = CharField(max_length=255, blank=True)
-db_port = IntegerField(default=5432)
-db_user = CharField(max_length=100, blank=True)
-db_password = CharField(max_length=255, blank=True)  # encrypt in production
-created_at = DateTimeField(auto_now_add=True)
 ```
