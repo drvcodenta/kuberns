@@ -69,7 +69,6 @@ App runs at `http://localhost:5173/`
 | **Total** | **~23 hrs** |
 
 ### Limitations
-
 - No user authentication
 - Deploy cleanup is manual — no auto-terminate for idle instances
 - Plan type (Starter/Pro) doesn't map to different EC2 instance sizes (free-tier constraint)
