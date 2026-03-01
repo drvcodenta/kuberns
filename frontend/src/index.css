@@ -5,16 +5,16 @@
 
 /* Custom properties */
 :root {
-  --bg-primary: #0a0e17;
-  --bg-secondary: #111827;
-  --bg-card: #151c2c;
-  --bg-input: #1a2236;
-  --border-color: #1e293b;
-  --border-focus: #3b82f6;
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --accent-blue: #3b82f6;
+  --bg-primary: #090909;
+  --bg-secondary: #111111;
+  --bg-card: #171717;
+  --bg-input: #202020;
+  --border-color: #2a2a2a;
+  --border-focus: #1727a3;
+  --text-primary: #e8ecf4;
+  --text-secondary: #8892a8;
+  --text-muted: #555f78;
+  --accent-blue: #0063f6;
   --accent-green: #22c55e;
   --accent-red: #ef4444;
   --accent-orange: #f97316;

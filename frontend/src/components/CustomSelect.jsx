@@ -30,8 +30,7 @@ export default function CustomSelect({ label, value, onChange, options, placehol
                 onClick={() => setOpen(!open)}
                 className={`w-full flex items-center justify-between bg-[var(--bg-input)] border ${error ? 'border-[var(--accent-red)]' : 'border-[var(--border-color)]'
                     } rounded-lg px-3 py-2.5 text-sm text-left cursor-pointer transition-all
-                hover:border-[var(--text-muted)] focus:border-[var(--border-focus)] focus:outline-none
-                ${open ? 'border-[var(--border-focus)]' : ''}
+                hover:border-[var(--text-muted)] focus:outline-none
                 ${value ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}
             >
                 <span className="truncate">{displayText}</span>
@@ -52,8 +51,8 @@ export default function CustomSelect({ label, value, onChange, options, placehol
                                 key={optValue}
                                 onClick={() => { onChange(optValue); setOpen(false); }}
                                 className={`px-3 py-2 text-sm cursor-pointer transition-colors ${isSelected
-                                        ? 'bg-[var(--accent-blue)]/15 text-[var(--accent-blue)]'
-                                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-input)] hover:text-[var(--text-primary)]'
+                                    ? 'bg-[var(--accent-blue)]/15 text-[var(--accent-blue)]'
+                                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-input)] hover:text-[var(--text-primary)]'
                                     }`}
                             >
                                 {optLabel}
