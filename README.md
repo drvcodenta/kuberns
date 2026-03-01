@@ -57,3 +57,21 @@ App runs at `http://localhost:5173/`
 - currently handling terminating instances manually.
 - used .env instead of aws secrets for easier development, could be used in prod
 - the plan type doesn't change instance size because of the free-tier constraint
+
+### Time Taken
+
+| Area | Hours |
+|------|-------|
+| Frontend (React + Vite + Tailwind) | ~10 hrs |
+| Backend (Django + DRF + Services) | ~6 hrs |
+| Deployment / Infra (AWS EC2 + boto3) | ~3 hrs |
+| Documentation + Testing | ~4 hrs |
+| **Total** | **~23 hrs** |
+
+### Limitations
+
+- No user authentication
+- Deploy cleanup is manual — no auto-terminate for idle instances
+- Plan type (Starter/Pro) doesn't map to different EC2 instance sizes (free-tier constraint)
+- Frontend uses polling (2s interval) instead of WebSockets for live logs
+- Database connection section in UI is decorative (CTA only, no backend)
