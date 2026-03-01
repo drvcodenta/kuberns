@@ -74,3 +74,7 @@ App runs at `http://localhost:5173/`
 - Plan type (Starter/Pro) doesn't map to different EC2 instance sizes (free-tier constraint)
 - Frontend uses polling (2s interval) instead of WebSockets for live logs
 - Database connection section in UI is decorative (CTA only, no backend)
+
+### video summary
+
+[![Video Title](https://img.youtube.com/vi/qlWzGjg0d7k/0.jpg)](https://www.youtube.com/watch?v=qlWzGjg0d7k)
