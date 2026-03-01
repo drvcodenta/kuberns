@@ -67,11 +67,11 @@ def _provision_ec2(deployment, instance, webapp, aws_access_key, aws_secret_key)
             aws_secret_access_key=aws_secret_key,
         )
 
-        _log(deployment, f'Launching t2.micro instance (AMI: {ami_id})...')
+        _log(deployment, f'Launching t3.micro instance (AMI: {ami_id})...')
 
         response = ec2_client.run_instances(
             ImageId=ami_id,
-            InstanceType='t2.micro',
+            InstanceType='t3.micro',
             MinCount=1,
             MaxCount=1,
             TagSpecifications=[
